@@ -86,7 +86,8 @@ commands:
                                         a playable copy where browsers cannot play the file, voice_message and voice_message_fts; no
                                         message or attachment changes; every file re-hashed; any failed check refuses the whole plan
   calls-import <folder or calls.tsv>    build/extend the call table from calls.tsv + sources.tsv (columns in CallImporter.swift), then add the Messenger/Instagram/GroupMe
-                                        call lines already in the archive; rows are never dropped, overlapping logs are linked (canonical_id), gaps recorded (call_gap)
+                                        call lines already in the archive; rows are never dropped, overlapping logs are linked (canonical_id), gaps recorded (call_gap);
+                                        which log wins follows its label (CallImporter.priority, or a file in $\(SourcePriority.environmentKey))
   groupme-media <folder>                attach GroupMe images/videos fetched from their URLs (a folder with results.jsonl and the files, left by a
                                         downloader you run yourself; format in README.md, "GroupMe media"): stored content-addressed, the URL kept as the attachment name, the URL line removed from the body
   attachments-plan [--notes <file>] <input.tsv> <plan.tsv>   name each staged attachment's media path (MediaStore's rule) and its target (the canonical row)

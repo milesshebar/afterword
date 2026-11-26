@@ -54,9 +54,12 @@ public enum CallImporter {
     /// A log added after the table was built is labeled `late-<label>`: it ranks after every other log, listed above or not, so it only
     /// ever links to rows already there (every import re-links the whole table, and a late log must never take a group over).
     public static let addedLaterPrefix = "late-"
-    static func rank(_ label: String) -> Int {
-        if label.hasPrefix(addedLaterPrefix) { return 10 * SourceRank.unmatched + rank(String(label.dropFirst(addedLaterPrefix.count))) }
-        return SourceRank.rank(label, prefixes: priority)
+    /// `using` replaces the built-in lists (`SourcePriority`, from `<PREFIX>_SOURCE_PRIORITY`); its added-later logs rank last of all.
+    static func rank(_ label: String, using p: SourcePriority = .builtIn) -> Int {
+        let late = SourceRank.rank(label, prefixes: p.callsAddedLater)
+        if late != SourceRank.unmatched { return 20 * SourceRank.unmatched + late }
+        if label.hasPrefix(addedLaterPrefix) { return 10 * SourceRank.unmatched + rank(String(label.dropFirst(addedLaterPrefix.count)), using: p) }
+        return SourceRank.rank(label, prefixes: p.calls)
     }
     public static let gapDays = 90
 
@@ -134,7 +137,8 @@ public enum CallImporter {
     // MARK: import
 
     /// `folder` holds `calls.tsv` and `sources.tsv` (or is `calls.tsv` itself).
-    public static func importExport(at path: URL, into db: Database, origin: String? = nil) throws -> CallImportReport {
+    /// `priority` replaces the built-in ranking; nil reads `<PREFIX>_SOURCE_PRIORITY` (`SourcePriority.fromEnvironment`).
+    public static func importExport(at path: URL, into db: Database, origin: String? = nil, priority: SourcePriority? = nil) throws -> CallImportReport {
         let t0 = Date()
         var isDir: ObjCBool = false
         FileManager.default.fileExists(atPath: path.path, isDirectory: &isDir)
@@ -175,7 +179,7 @@ public enum CallImporter {
                 try insert.run()
                 if db.changes > 0 { stats.rows += 1 } else { stats.alreadyThere += 1 }
             }
-            try finish(db: db, folder: folder, stats: &stats)
+            try finish(db: db, folder: folder, stats: &stats, priority: priority)
             stats.seconds = Date().timeIntervalSince(t0)
             let up = try db.prepare("UPDATE source SET stats_json = ? WHERE id = ?")
             up.bind(1, String(decoding: try JSONEncoder().encode(stats), as: UTF8.self)).bind(2, sid)
@@ -185,7 +189,7 @@ public enum CallImporter {
     }
 
     /// Messenger / Instagram / GroupMe calls from the archive's `kind = 'call'` rows. Idempotent (keyed by the message id).
-    public static func importMessageCalls(into db: Database) throws -> CallImportStats {
+    public static func importMessageCalls(into db: Database, priority: SourcePriority? = nil) throws -> CallImportStats {
         try ensureTables(db)
         var stats = CallImportStats()
         try db.transaction {
@@ -222,7 +226,7 @@ public enum CallImporter {
                 try insert.run()
                 if db.changes > 0 { stats.rows += 1 } else { stats.alreadyThere += 1 }
             }
-            try finish(db: db, folder: nil, stats: &stats)
+            try finish(db: db, folder: nil, stats: &stats, priority: priority)
             if stats.rows == 0 {
                 // Nothing new: leave no trace (a rerun must add nothing, not even an empty source row).
                 let del = try db.prepare("DELETE FROM source WHERE id = ?")
@@ -270,7 +274,8 @@ public enum CallImporter {
 
     /// Re-links duplicates over the whole table (so a later, overlapping export is folded into earlier rows) and rewrites
     /// `call_source`, `call_gap` and the totals.
-    static func finish(db: Database, folder: URL?, stats: inout CallImportStats) throws {
+    static func finish(db: Database, folder: URL?, stats: inout CallImportStats, priority: SourcePriority? = nil) throws {
+        let priority = try priority ?? SourcePriority.fromEnvironment()
         try db.exec("UPDATE call SET canonical_id = NULL")
         struct C { var id: Int64, label: String, ts: Int64, dur: Int64, dir: String, service: String, addr: String, key: String? }
         let q = try db.prepare("SELECT id, source_label, ts_ms, duration_s, direction, service, coalesce(address, ''), source_key FROM call")
@@ -280,7 +285,7 @@ public enum CallImporter {
                          addr: q.string(6) ?? "", key: q.string(7)))
         }
         q.reset()
-        all.sort { (rank($0.label), $0.ts, $0.id) < (rank($1.label), $1.ts, $1.id) }
+        all.sort { (rank($0.label, using: priority), $0.ts, $0.id) < (rank($1.label, using: priority), $1.ts, $1.id) }
         var byKey: [String: Int64] = [:]               // service|key -> canonical id
         var byAddr: [String: [(ts: Int64, dur: Int64, dir: String, id: Int64, label: String)]] = [:]
         var dup: [(Int64, Int64)] = []

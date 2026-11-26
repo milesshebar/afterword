@@ -158,7 +158,7 @@ final class AppModel {
         self.contacts = ContactsResolver(enabled: !isSnapshot)
     }
 
-    /// The root the app opens: explicit `--archive`, then the Settings choice, then MESSAGE_ARCHIVE_ROOT, then the default.
+    /// The root the app opens: explicit `--archive`, then the Settings choice, then `<PREFIX>_ROOT` (`ArchiveRoot.environmentKey`), then the default.
     static func initialRoot(flag: String?) -> ArchiveRoot {
         if let flag, !flag.isEmpty { return ArchiveRoot.resolve(flag: flag) }
         if let saved = UserDefaults.standard.string(forKey: rootDefaultsKey), !saved.isEmpty { return ArchiveRoot.resolve(flag: saved) }

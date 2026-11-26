@@ -60,7 +60,8 @@ public enum RecordingImporter {
     /// or Voice Memos database, from a backup) outrank exports and loose files; within one prefix the label naming the later year
     /// wins; a label matching no prefix ranks last (`SourceRank`).
     public static let priority = ["memo-voicememos", "vm-phone", "memo-phone"]
-    static func rank(_ label: String) -> Int { SourceRank.rank(label, prefixes: priority) }
+    /// `using` replaces the built-in list (`SourcePriority`, from `<PREFIX>_SOURCE_PRIORITY`).
+    static func rank(_ label: String, using p: SourcePriority = .builtIn) -> Int { SourceRank.rank(label, prefixes: p.recordings) }
     /// A time that is the recording's own (the others are when a file was exported or last written).
     static let ownTimes: Set<String> = ["database", "audio-tag", "file-name"]
     static let datedBy: Set<String> = ["database", "audio-tag", "file-name", "export-time", "file-time"]
@@ -318,8 +319,9 @@ public enum RecordingImporter {
 
     // MARK: import
 
+    /// `priority` replaces the built-in ranking; nil reads `<PREFIX>_SOURCE_PRIORITY` (`SourcePriority.fromEnvironment`).
     public static func run(plan url: URL, transcripts: URL?, into db: Database, root: ArchiveRoot, dryRun: Bool = false, ledger: URL? = nil,
-                           origin: String? = nil) throws -> RecordingImportReport {
+                           origin: String? = nil, priority: SourcePriority? = nil) throws -> RecordingImportReport {
         let rows = try readPlan(url)
         let (planSHA, planBytes) = try Hashing.sha256Hex(ofFile: url)
         let key = "recordings-plan:" + planSHA
@@ -538,7 +540,7 @@ public enum RecordingImporter {
                 }
             }
             if !dryRun {
-                try finish(db)
+                try finish(db, priority: priority)
                 stats.totalRows = Int(try db.scalarInt("SELECT count(*) FROM recording"))
                 stats.canonical = Int(try db.scalarInt("SELECT count(*) FROM recording WHERE canonical_id IS NULL"))
                 stats.duplicates = stats.totalRows - stats.canonical
@@ -579,7 +581,8 @@ public enum RecordingImporter {
     // MARK: linking and search index
 
     /// Re-links duplicates over the whole table and rebuilds the search index from the canonical rows.
-    static func finish(_ db: Database) throws {
+    static func finish(_ db: Database, priority: SourcePriority? = nil) throws {
+        let priority = try priority ?? SourcePriority.fromEnvironment()
         try db.exec("UPDATE recording SET canonical_id = NULL")
         struct R { var id: Int64, kind: String, label: String, ts: Int64?, own: Bool, dur: Double, sha: String?, uuid: String?, sameAs: Int64? }
         let q = try db.prepare("SELECT id, kind, source_label, ts_ms, dated_by, duration_s, sha256, memo_uuid, same_as FROM recording")
@@ -622,7 +625,7 @@ public enum RecordingImporter {
         var dup: [(Int64, Int64)] = []
         for group in members.values where group.count > 1 {
             let w = group.min { a, b in
-                let ka = (all[a].sha == nil ? 1 : 0, rank(all[a].label), all[a].id), kb = (all[b].sha == nil ? 1 : 0, rank(all[b].label), all[b].id)
+                let ka = (all[a].sha == nil ? 1 : 0, rank(all[a].label, using: priority), all[a].id), kb = (all[b].sha == nil ? 1 : 0, rank(all[b].label, using: priority), all[b].id)
                 return ka < kb
             }!
             for i in group where i != w { dup.append((all[i].id, all[w].id)) }

@@ -88,6 +88,8 @@ sqlite3 ~/Library/Messages/chat.db ".backup /tmp/chat-snapshot.db"
 
 Imports are idempotent: importing the same file again reports it as already imported. A later `chat.db` snapshot adds only what came after the previous cutoff. Day-sized options (`--until`, `--since`) are read in this Mac's time zone, or in `AFTERWORD_TIME_ZONE` if you set it.
 
+When the same call or recording turns up in several logs, one copy wins and the others are linked to it. The winner follows the log's label: calls rank `phone-*`, `mac-*`, `android-xml`, `whatsapp-app`, `skype-*`, then the Messenger, Instagram and GroupMe lines (newer year first within a prefix; `late-<label>` for a log added after the table was built); recordings rank `memo-voicememos-*`, `vm-phone-*`, `memo-phone-*`. If your labels follow another scheme, list them in a JSON file and point `AFTERWORD_SOURCE_PRIORITY` at it: `{"calls": [...], "calls_added_later": [...], "recordings": [...]}`, each key optional, earlier entries winning (`Sources/ArchiveCore/SourcePriority.swift`). Every import re-links the whole table, so keep the file the same from one import to the next.
+
 Then open the archive in the Mac app (`build/Afterword.app`, or the binary with `--archive`). The app reads the archive and never writes it; people corrections go to `people.sqlite` beside it.
 
 ### Matching people
