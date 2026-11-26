@@ -9,7 +9,8 @@ import Foundation
 /// Every key is optional; a missing list keeps the built-in one (`calls_added_later` defaults to none). Entries match the way the
 /// built-in prefixes do (a label equal to an entry, or starting with `<entry>-`); earlier entries win. A `calls_added_later` entry
 /// ranks after every other log, listed or not, `late-` labels included, in the order listed. Every import re-links the whole table,
-/// so the file must stay the same from one import to the next; an unreadable or malformed file stops the import before it writes.
+/// so the file must stay the same from one import to the next. archivectl reads the file before it opens the archive, so an
+/// unreadable or malformed file stops the import before anything is written; the library itself never reads the environment.
 public struct SourcePriority: Equatable, Sendable {
     public var calls: [String]
     public var callsAddedLater: [String]

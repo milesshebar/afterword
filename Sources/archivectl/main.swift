@@ -850,9 +850,10 @@ do {
         }
         guard args.count == 1 else { eprint("usage: archivectl recordings-import [--dry-run] [--ledger <file.tsv>] [--transcripts <folder>] [--origin <label>] <recordings.tsv>"); exit(2) }
         if let problem = root.mediaProblem { eprint(problem); exit(1) }
+        let priority = try SourcePriority.fromEnvironment()
         let db = try Schema.openArchive(root: root, readOnly: dry)
         let r = try RecordingImporter.run(plan: URL(fileURLWithPath: (args[0] as NSString).expandingTildeInPath), transcripts: transcripts, into: db, root: root,
-                                          dryRun: dry, ledger: ledger, origin: origin)
+                                          dryRun: dry, ledger: ledger, origin: origin, priority: priority)
         if !dry { try? db.exec("PRAGMA wal_checkpoint(TRUNCATE)") }
         if r.status == .alreadyImported { print("this recordings plan was already imported (source \(r.sourceID ?? 0)), skipped" + (ledger != nil ? " (ledger republished from the database)" : "")); break }
         let s = r.stats
@@ -925,10 +926,11 @@ do {
 
     case "calls-import":
         guard args.count == 1 else { eprint("usage: archivectl calls-import <folder with calls.tsv and sources.tsv, or calls.tsv>"); exit(2) }
+        let priority = try SourcePriority.fromEnvironment()
         let db = try Schema.openArchive(root: root)
         let t0 = Date()
-        let rep = try CallImporter.importExport(at: URL(fileURLWithPath: (args[0] as NSString).expandingTildeInPath), into: db)
-        let msg = try CallImporter.importMessageCalls(into: db)
+        let rep = try CallImporter.importExport(at: URL(fileURLWithPath: (args[0] as NSString).expandingTildeInPath), into: db, priority: priority)
+        let msg = try CallImporter.importMessageCalls(into: db, priority: priority)
         try? db.exec("PRAGMA wal_checkpoint(TRUNCATE)")
         let s = msg      // the last pass summarizes the whole table
         if rep.status == .alreadyImported { print("calls.tsv already imported, skipped (message calls: +\(msg.rows) new, \(msg.alreadyThere) already there)") }

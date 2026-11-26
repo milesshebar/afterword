@@ -319,9 +319,9 @@ public enum RecordingImporter {
 
     // MARK: import
 
-    /// `priority` replaces the built-in ranking; nil reads `<PREFIX>_SOURCE_PRIORITY` (`SourcePriority.fromEnvironment`).
+    /// `priority` replaces the built-in ranking (archivectl passes `SourcePriority.fromEnvironment()`).
     public static func run(plan url: URL, transcripts: URL?, into db: Database, root: ArchiveRoot, dryRun: Bool = false, ledger: URL? = nil,
-                           origin: String? = nil, priority: SourcePriority? = nil) throws -> RecordingImportReport {
+                           origin: String? = nil, priority: SourcePriority = .builtIn) throws -> RecordingImportReport {
         let rows = try readPlan(url)
         let (planSHA, planBytes) = try Hashing.sha256Hex(ofFile: url)
         let key = "recordings-plan:" + planSHA
@@ -581,8 +581,7 @@ public enum RecordingImporter {
     // MARK: linking and search index
 
     /// Re-links duplicates over the whole table and rebuilds the search index from the canonical rows.
-    static func finish(_ db: Database, priority: SourcePriority? = nil) throws {
-        let priority = try priority ?? SourcePriority.fromEnvironment()
+    static func finish(_ db: Database, priority: SourcePriority = .builtIn) throws {
         try db.exec("UPDATE recording SET canonical_id = NULL")
         struct R { var id: Int64, kind: String, label: String, ts: Int64?, own: Bool, dur: Double, sha: String?, uuid: String?, sameAs: Int64? }
         let q = try db.prepare("SELECT id, kind, source_label, ts_ms, dated_by, duration_s, sha256, memo_uuid, same_as FROM recording")

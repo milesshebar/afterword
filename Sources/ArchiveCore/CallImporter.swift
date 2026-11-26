@@ -137,8 +137,8 @@ public enum CallImporter {
     // MARK: import
 
     /// `folder` holds `calls.tsv` and `sources.tsv` (or is `calls.tsv` itself).
-    /// `priority` replaces the built-in ranking; nil reads `<PREFIX>_SOURCE_PRIORITY` (`SourcePriority.fromEnvironment`).
-    public static func importExport(at path: URL, into db: Database, origin: String? = nil, priority: SourcePriority? = nil) throws -> CallImportReport {
+    /// `priority` replaces the built-in ranking (archivectl passes `SourcePriority.fromEnvironment()`).
+    public static func importExport(at path: URL, into db: Database, origin: String? = nil, priority: SourcePriority = .builtIn) throws -> CallImportReport {
         let t0 = Date()
         var isDir: ObjCBool = false
         FileManager.default.fileExists(atPath: path.path, isDirectory: &isDir)
@@ -189,7 +189,7 @@ public enum CallImporter {
     }
 
     /// Messenger / Instagram / GroupMe calls from the archive's `kind = 'call'` rows. Idempotent (keyed by the message id).
-    public static func importMessageCalls(into db: Database, priority: SourcePriority? = nil) throws -> CallImportStats {
+    public static func importMessageCalls(into db: Database, priority: SourcePriority = .builtIn) throws -> CallImportStats {
         try ensureTables(db)
         var stats = CallImportStats()
         try db.transaction {
@@ -274,8 +274,7 @@ public enum CallImporter {
 
     /// Re-links duplicates over the whole table (so a later, overlapping export is folded into earlier rows) and rewrites
     /// `call_source`, `call_gap` and the totals.
-    static func finish(db: Database, folder: URL?, stats: inout CallImportStats, priority: SourcePriority? = nil) throws {
-        let priority = try priority ?? SourcePriority.fromEnvironment()
+    static func finish(db: Database, folder: URL?, stats: inout CallImportStats, priority: SourcePriority = .builtIn) throws {
         try db.exec("UPDATE call SET canonical_id = NULL")
         struct C { var id: Int64, label: String, ts: Int64, dur: Int64, dir: String, service: String, addr: String, key: String? }
         let q = try db.prepare("SELECT id, source_label, ts_ms, duration_s, direction, service, coalesce(address, ''), source_key FROM call")
