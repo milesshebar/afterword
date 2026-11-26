@@ -1,0 +1,21 @@
+# build output
+.build/
+build/
+DerivedData/
+*.xcuserstate
+__pycache__/
+*.pyc
+.DS_Store
+
+# archives and exports never belong in the repo
+*.xml
+*.db
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+# docker-compose runtime files
+secrets/*
+!secrets/app.env.example
+cache/
+.env

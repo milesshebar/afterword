@@ -1,0 +1,8 @@
+.build
+build
+.git
+.claude
+.DS_Store
+scripts
+secrets
+cache

@@ -1,0 +1,42 @@
+# The read-only web app over an archive folder. Copy secrets/app.env.example to secrets/app.env and set ARCHIVE_WEB_KEY to a long
+# random string; your reverse proxy (Caddy, nginx, Traefik) terminates TLS and adds it to every request as the X-Archive-Key header.
+# Set ARCHIVE_DIR (in .env or the environment) to the archive folder, and ARCHIVE_WEB_HOSTS to the name people use.
+services:
+  archive-web:
+    build:
+      context: .
+      args:
+        REVISION: ${REVISION:-unknown}
+    image: archive-web:local
+    container_name: archive-web
+    restart: unless-stopped
+    init: true
+    ports:
+      - "127.0.0.1:8452:8452"
+    env_file:
+      - ./secrets/app.env
+    environment:
+      ARCHIVE_WEB_HOSTS: ${ARCHIVE_WEB_HOSTS:-localhost}
+      TZ: ${TZ:-UTC}
+    volumes:
+      # The archive folder (archive.sqlite, media/, people.sqlite), read-only: the web app never writes it.
+      - "${ARCHIVE_DIR:?set ARCHIVE_DIR to the archive folder}:/archive:ro"
+      # Generated thumbnails, in a named volume owned by the container's user; safe to delete at any time.
+      - thumbs:/cache
+    # The reader holds the person mapping and conversation list in memory (a few hundred MB for about a million messages);
+    # thumbnails are made by vipsthumbnail one or two at a time.
+    mem_limit: 1g
+    pids_limit: 256
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  thumbs:
